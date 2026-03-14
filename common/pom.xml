@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ecommerce</groupId>
+        <artifactId>event-driven-microservices</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>common</artifactId>
+    <name>Event-Driven Microservices :: Common</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <!-- Bean Validation annotations (@NotBlank, @NotNull, @Min, @Valid) -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+        <!-- Swagger annotations (@Schema, @Parameter) used by generated code -->
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>2.2.21</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                OpenAPI Generator — contract documentation.
+
+                The hand-crafted Lombok classes in src/main/java/com/ecommerce/common/dto/
+                ARE the authoritative DTOs (they mirror exactly what the generator would produce).
+
+                To regenerate from the YAML spec, activate the "codegen" profile:
+                  mvn generate-sources -Pcodegen
+
+                The profile moves src/main/java DTOs out of the compile path so the
+                generated versions compile cleanly, avoiding duplicate-class errors.
+
+                Default build: generator is skipped — src/main/java classes compile as-is.
+            -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>${openapi-generator.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-common-dtos</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <!-- Skipped by default; activate -Pcodegen to regenerate -->
+                        <configuration>
+                            <skip>true</skip>
+                            <inputSpec>
+                                ${project.basedir}/src/main/resources/openapi/common-schemas.yaml
+                            </inputSpec>
+                            <generatorName>spring</generatorName>
+                            <generateApis>false</generateApis>
+                            <generateModels>true</generateModels>
+                            <generateSupportingFiles>false</generateSupportingFiles>
+                            <generateApiTests>false</generateApiTests>
+                            <generateModelTests>false</generateModelTests>
+                            <generateApiDocumentation>false</generateApiDocumentation>
+                            <generateModelDocumentation>false</generateModelDocumentation>
+                            <modelPackage>com.ecommerce.common.dto</modelPackage>
+                            <output>${project.build.directory}/generated-sources/openapi</output>
+                            <configOptions>
+                                <useLombok>true</useLombok>
+                                <useJakartaEe>true</useJakartaEe>
+                                <openApiNullable>false</openApiNullable>
+                                <dateLibrary>java8</dateLibrary>
+                                <serializableModel>true</serializableModel>
+                                <generateBuilders>true</generateBuilders>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

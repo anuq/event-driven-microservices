@@ -1,0 +1,293 @@
+openapi: "3.0.3"
+info:
+  title: Order Service API
+  version: "1.0.0"
+  description: |
+    Command and query endpoints for the Order Management microservice.
+
+    **Write side** (commands): create / cancel orders — triggers the saga.
+    **Read side** (queries): CQRS projection of order state.
+
+servers:
+  - url: http://localhost:8081
+    description: Local development
+
+tags:
+  - name: orders-commands
+    description: Write-side operations (event-sourced, triggers saga)
+  - name: orders-queries
+    description: Read-side operations (CQRS projection)
+
+paths:
+
+  /api/v1/orders:
+    post:
+      tags: [orders-commands]
+      operationId: createOrder
+      summary: Place a new order
+      description: |
+        Creates an order aggregate, persists the `OrderCreatedEvent` to the event store,
+        and publishes it to the `order-events` Kafka topic to start the saga.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            example:
+              customerId: CUST-001
+              items:
+                - productId: PROD-001
+                  productName: Wireless Headphones
+                  quantity: 2
+                  unitPrice: 79.99
+      responses:
+        "201":
+          description: Order accepted
+          headers:
+            Location:
+              description: URL of the newly created order
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags: [orders-queries]
+      operationId: listOrdersByStatus
+      summary: List orders filtered by status
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/OrderStatusDto'
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated list of orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+
+  /api/v1/orders/{orderId}:
+    get:
+      tags: [orders-queries]
+      operationId: getOrderById
+      summary: Retrieve a single order by ID (read model)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Order found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDto'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [orders-commands]
+      operationId: cancelOrder
+      summary: Cancel an order
+      description: |
+        Applies `CancelOrderCommand` to the aggregate and publishes `OrderCancelledEvent`.
+        Only PENDING orders can be cancelled.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: reason
+          in: query
+          required: false
+          schema:
+            type: string
+            default: Customer request
+      responses:
+        "204":
+          description: Order cancelled
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/orders/customer/{customerId}:
+    get:
+      tags: [orders-queries]
+      operationId: getOrdersByCustomer
+      summary: Retrieve all orders for a customer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderDto'
+
+components:
+
+  schemas:
+
+    OrderItemDto:
+      type: object
+      required: [productId, productName, quantity, unitPrice]
+      properties:
+        productId:
+          type: string
+          example: PROD-001
+        productName:
+          type: string
+          example: Wireless Headphones
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          example: 2
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 79.99
+
+    CreateOrderRequest:
+      type: object
+      required: [customerId, items]
+      properties:
+        customerId:
+          type: string
+          minLength: 1
+          example: CUST-001
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItemDto'
+
+    CreateOrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+    OrderDto:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemDto'
+        totalAmount:
+          type: number
+          format: double
+        status:
+          $ref: '#/components/schemas/OrderStatusDto'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderStatusDto:
+      type: string
+      enum: [PENDING, CONFIRMED, CANCELLED, PAYMENT_FAILED, INVENTORY_FAILED]
+
+    OrderPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderDto'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request payload
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: State conflict (e.g. cancelling a CONFIRMED order)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

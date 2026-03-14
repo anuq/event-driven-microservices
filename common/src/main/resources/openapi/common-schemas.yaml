@@ -1,0 +1,132 @@
+openapi: "3.0.3"
+info:
+  title: Ecommerce Common Schemas
+  version: "1.0.0"
+  description: |
+    Shared domain DTOs used across all microservices.
+    This file is used exclusively for model generation — no paths are defined here.
+
+paths: {}   # models-only spec
+
+components:
+  schemas:
+
+    OrderItemDto:
+      type: object
+      description: A single line item within an order.
+      required:
+        - productId
+        - productName
+        - quantity
+        - unitPrice
+      properties:
+        productId:
+          type: string
+          description: Unique product identifier.
+          example: PROD-001
+        productName:
+          type: string
+          description: Human-readable product name.
+          example: Wireless Headphones
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Number of units ordered.
+          example: 2
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Price per unit in the order currency.
+          example: 79.99
+
+    CreateOrderRequest:
+      type: object
+      description: Request payload to create a new order.
+      required:
+        - customerId
+        - items
+      properties:
+        customerId:
+          type: string
+          description: ID of the customer placing the order.
+          minLength: 1
+          example: CUST-001
+        items:
+          type: array
+          description: Line items in the order. Must not be empty.
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItemDto'
+
+    OrderDto:
+      type: object
+      description: Read-side view of an order (from the CQRS projection).
+      required:
+        - orderId
+        - customerId
+        - items
+        - totalAmount
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        orderId:
+          type: string
+          description: Unique order identifier (UUID).
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        customerId:
+          type: string
+          description: Customer who placed the order.
+          example: CUST-001
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemDto'
+        totalAmount:
+          type: number
+          format: double
+          description: Sum of all line items.
+          example: 289.97
+        status:
+          $ref: '#/components/schemas/OrderStatusDto'
+        createdAt:
+          type: string
+          format: date-time
+          description: UTC timestamp when the order was placed.
+        updatedAt:
+          type: string
+          format: date-time
+          description: UTC timestamp of the last status change.
+
+    OrderStatusDto:
+      type: string
+      description: Lifecycle status of an order.
+      enum:
+        - PENDING
+        - CONFIRMED
+        - CANCELLED
+        - PAYMENT_FAILED
+        - INVENTORY_FAILED
+
+    ErrorResponse:
+      type: object
+      description: RFC 7807-style problem detail returned on errors.
+      properties:
+        type:
+          type: string
+          description: URI reference identifying the problem type.
+        title:
+          type: string
+          description: Short, human-readable summary of the problem.
+        status:
+          type: integer
+          format: int32
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Human-readable explanation of this specific occurrence.
+        instance:
+          type: string
+          description: URI reference identifying the specific request.
